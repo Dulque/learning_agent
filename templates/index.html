@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I Will Teach You - AI Learning Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --success: #4cc9f0;
+            --warning: #f72585;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .nav-tabs .nav-link {
+            color: rgba(255, 255, 255, 0.7);
+            border: none;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: white;
+            background: transparent;
+            border-bottom: 3px solid var(--accent);
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            border: none;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(67, 97, 238, 0.4);
+        }
+        
+        .quiz-option {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quiz-option:hover {
+            background: rgba(67, 97, 238, 0.2);
+            transform: translateX(5px);
+        }
+        
+        .quiz-option.selected {
+            background: rgba(76, 201, 240, 0.2);
+            border-color: var(--success);
+        }
+        
+        .result-container {
+            background: rgba(26, 26, 46, 0.5);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            animation: fadeIn 0.5s;
+        }
+        
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .agent-name {
+            font-weight: 700;
+            background: linear-gradient(90deg, #4361ee, #4cc9f0);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="text-center mb-5">
+            <h1 class="display-4 fw-bold"><span class="agent-name">I Will Teach You</span></h1>
+            <p class="lead">Your AI-powered learning assistant</p>
+        </div>
+
+        <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="learn-tab" data-bs-toggle="tab" data-bs-target="#learn" type="button" role="tab">Learn</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="explain-tab" data-bs-toggle="tab" data-bs-target="#explain" type="button" role="tab">Explain</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="quiz-tab" data-bs-toggle="tab" data-bs-target="#quiz" type="button" role="tab">Quiz</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="map-tab" data-bs-toggle="tab" data-bs-target="#map" type="button" role="tab">Memory Map</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">Upload</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="myTabContent">
+            <!-- Learn Tab -->
+            <div class="tab-pane fade show active" id="learn" role="tabpanel">
+                <div class="glass-card p-4">
+                    <h3><i class="fas fa-book me-2"></i>Learn a New Topic</h3>
+                    <div class="mb-3 mt-4">
+                        <label class="form-label">What would you like to learn?</label>
+                        <input type="text" class="form-control bg-transparent text-white" id="topicInput" placeholder="Enter a topic (e.g., Quantum Physics)">
+                    </div>
+                    <button class="btn btn-primary w-100" id="learnBtn">
+                        <span class="btn-text">Start Learning</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="learnSpinner"></span>
+                    </button>
+                    <div id="learnResult" class="result-container d-none"></div>
+                </div>
+            </div>
+
+            <!-- Explain Tab -->
+            <div class="tab-pane fade" id="explain" role="tabpanel">
+                <div class="glass-card p-4">
+                    <h3><i class="fas fa-lightbulb me-2"></i>Explain a Concept</h3>
+                    <div class="mb-3 mt-4">
+                        <label class="form-label">What concept needs explanation?</label>
+                        <input type="text" class="form-control bg-transparent text-white" id="conceptInput" placeholder="Enter a concept (e.g., Photosynthesis)">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Explanation Level</label>
+                        <select class="form-select bg-transparent text-white" id="levelSelect">
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary w-100" id="explainBtn">
+                        <span class="btn-text">Explain Concept</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="explainSpinner"></span>
+                    </button>
+                    <div id="explainResult" class="result-container d-none"></div>
+                </div>
+            </div>
+
+            <!-- Quiz Tab -->
+            <div class="tab-pane fade" id="quiz" role="tabpanel">
+                <div class="glass-card p-4">
+                    <h3><i class="fas fa-question-circle me-2"></i>Interactive Quiz</h3>
+                    
+                    <!-- Quiz Setup -->
+                    <div id="quizSetup">
+                        <div class="mb-3 mt-4">
+                            <label class="form-label">Quiz Topic</label>
+                            <input type="text" class="form-control bg-transparent text-white" id="quizTopicInput" placeholder="Enter quiz topic (e.g., World History)">
+                        </div>
+                        <button class="btn btn-primary w-100" id="startQuizBtn">
+                            <span class="btn-text">Start Quiz</span>
+                            <span class="spinner-border spinner-border-sm d-none" id="quizSpinner"></span>
+                        </button>
+                    </div>
+                    
+                    <!-- Active Quiz -->
+                    <div id="quizActive" class="d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 id="quizTopicLabel"></h5>
+                            <div class="badge bg-primary">Question <span id="questionNum">1</span>/<span id="totalQuestions">5</span></div>
+                        </div>
+                        
+                        <div class="progress mb-4" style="height: 8px;">
+                            <div id="quizProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5 id="quizQuestion"></h5>
+                            <div id="quizOptions" class="mt-3"></div>
+                        </div>
+                        
+                        <button class="btn btn-primary w-100 d-none" id="nextQuestionBtn">Next Question</button>
+                        <div id="quizFeedback" class="mb-3"></div>
+                        <div id="quizScore" class="fw-bold text-center"></div>
+                    </div>
+                    
+                    <!-- Quiz Results -->
+                    <div id="quizResults" class="result-container d-none">
+                        <h4>Quiz Analysis</h4>
+                        <div id="quizAnalysis"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory Map Tab -->
+            <div class="tab-pane fade" id="map" role="tabpanel">
+                <div class="glass-card p-4">
+                    <h3><i class="fas fa-project-diagram me-2"></i>Memory Map</h3>
+                    <div class="mb-3 mt-4">
+                        <label class="form-label">Topic for Memory Map</label>
+                        <input type="text" class="form-control bg-transparent text-white" id="mapTopicInput" placeholder="Enter topic (e.g., Human Brain)">
+                    </div>
+                    <button class="btn btn-primary w-100" id="mapBtn">
+                        <span class="btn-text">Generate Map</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="mapSpinner"></span>
+                    </button>
+                    <div id="mapResult" class="result-container d-none">
+                        <pre id="memoryMap" class="p-3 bg-dark rounded"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Tab -->
+            <div class="tab-pane fade" id="upload" role="tabpanel">
+                <div class="glass-card p-4">
+                    <h3><i class="fas fa-upload me-2"></i>Upload Learning Materials</h3>
+                    <div class="mb-3 mt-4">
+                        <label class="form-label">Select PDF or Text File</label>
+                        <input type="file" class="form-control bg-transparent text-white" id="fileInput" accept=".pdf,.txt">
+                        <div class="form-text">Max file size: 10MB</div>
+                    </div>
+                    <button class="btn btn-primary w-100" id="uploadBtn">
+                        <span class="btn-text">Upload & Process</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="uploadSpinner"></span>
+                    </button>
+                    <div id="uploadStatus" class="result-container d-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elements
+            const learnBtn = document.getElementById('learnBtn');
+            const explainBtn = document.getElementById('explainBtn');
+            const startQuizBtn = document.getElementById('startQuizBtn');
+            const mapBtn = document.getElementById('mapBtn');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const nextQuestionBtn = document.getElementById('nextQuestionBtn');
+            
+            // Quiz state
+            let quizSession = {
+                id: null,
+                currentQuestion: 0,
+                score: 0
+            };
+            
+            // Event listeners
+            learnBtn.addEventListener('click', learnTopic);
+            explainBtn.addEventListener('click', explainConcept);
+            startQuizBtn.addEventListener('click', startQuiz);
+            mapBtn.addEventListener('click', createMemoryMap);
+            uploadBtn.addEventListener('click', uploadFile);
+            nextQuestionBtn.addEventListener('click', nextQuestion);
+            
+            // Learning functions
+            async function learnTopic() {
+                const topic = document.getElementById('topicInput').value.trim();
+                if (!topic) return;
+                
+                const spinner = document.getElementById('learnSpinner');
+                const resultDiv = document.getElementById('learnResult');
+                
+                showLoading(learnBtn, spinner);
+                resultDiv.classList.add('d-none');
+                
+                try {
+                    const response = await fetch('/learn', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ topic })
+                    });
+                    
+                    const data = await response.json();
+                    if (response.ok) {
+                        resultDiv.innerHTML = `
+                            <h4>${data.topic}</h4>
+                            <div class="mt-3">${data.explanation.replace(/\n/g, '<br>')}</div>
+                        `;
+                        resultDiv.classList.remove('d-none');
+                    } else {
+                        showError('Failed to learn topic', data.error);
+                    }
+                } catch (error) {
+                    showError('Network error', error.message);
+                } finally {
+                    hideLoading(learnBtn, spinner);
+                }
+            }
+            
+            async function explainConcept() {
+                const concept = document.getElementById('conceptInput').value.trim();
+                const level = document.getElementById('levelSelect').value;
+                if (!concept) return;
+                
+                const spinner = document.getElementById('explainSpinner');
+                const resultDiv = document.getElementById('explainResult');
+                
+                showLoading(explainBtn, spinner);
+                resultDiv.classList.add('d-none');
+                
+                try {
+                    const response = await fetch('/explain', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ concept, level })
+                    });
+                    
+                    const data = await response.json();
+                    if (response.ok) {
+                        resultDiv.innerHTML = `
+                            <h4>${data.concept} (${level} level)</h4>
+                            <div class="mt-3">${data.explanation.replace(/\n/g, '<br>')}</div>
+                        `;
+                        resultDiv.classList.remove('d-none');
+                    } else {
+                        showError('Failed to explain concept', data.error);
+                    }
+                } catch (error) {
+                    showError('Network error', error.message);
+                } finally {
+                    hideLoading(explainBtn, spinner);
+                }
+            }
+            
+            // Quiz functions
+            async function startQuiz() {
+                const topic = document.getElementById('quizTopicInput').value.trim();
+                if (!topic) return;
+                
+                const spinner = document.getElementById('quizSpinner');
+                showLoading(startQuizBtn, spinner);
+                
+                try {
+                    const response = await fetch('/start_quiz', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ topic })
+                    });
+                    
+                    const data = await response.json();
+                    if (response.ok) {
+                        quizSession = {
+                            id: data.session_id,
+                            currentQuestion: 0,
+                            score: 0
+                        };
+                        
+                        // Show quiz interface
+                        document.getElementById('quizSetup').classList.add('d-none');
+                        document.getElementById('quizActive').classList.remove('d-none');
+                        document.getElementById('quizResults').classList.add('d-none');
+                        
+                        // Set quiz info
+                        document.getElementById('quizTopicLabel').textContent = topic;
+                        document.getElementById('totalQuestions').textContent = '5';
+                        document.getElementById('questionNum').textContent = '1';
+                        
+                        // Display first question
+                        displayQuestion(data.question, data.options);
+                        updateQuizProgress(0);
+                    } else {
+                        showError('Failed to start quiz', data.error);
+                    }
+                } catch (error) {
+                    showError('Network error', error.message);
+                } finally {
+                    hideLoading(startQuizBtn, spinner);
+                }
+            }
+            
+            function displayQuestion(question, options) {
+                document.getElementById('quizQuestion').textContent = question;
+                const optionsContainer = document.getElementById('quizOptions');
+                optionsContainer.innerHTML = '';
+                
+                options.forEach((option, index) => {
+                    const optionElem = document.createElement('div');
+                    optionElem.className = 'quiz-option';
+                    optionElem.textContent = option;
+                    optionElem.dataset.option = option.charAt(0);
+                    optionElem.addEventListener('click', selectOption);
+                    optionsContainer.appendChild(optionElem);
+                });
+                
+                // Reset UI
+                document.getElementById('quizFeedback').innerHTML = '';
+                document.getElementById('quizScore').textContent = '';
+                nextQuestionBtn.classList.add('d-none');
+            }
+            
+            function selectOption(e) {
+                const selectedOption = e.target;
+                const options = document.querySelectorAll('.quiz-option');
+                
+                // Remove selected class from all options
+                options.forEach(opt => opt.classList.remove('selected'));
+                
+                // Add selected class to clicked option
+                selectedOption.classList.add('selected');
+                
+                // Enable submit button
+                nextQuestionBtn.classList.remove('d-none');
+            }
+            
+            async function nextQuestion() {
+                const selectedOption = document.querySelector('.quiz-option.selected');
+                if (!selectedOption) return;
+                
+                const answer = selectedOption.dataset.option;
+                const spinner = nextQuestionBtn.querySelector('.spinner-border');
+                showLoading(nextQuestionBtn, spinner);
+                
+                try {
+                    const response = await fetch('/submit_answer', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            session_id: quizSession.id,
+                            question_id: quizSession.currentQuestion,
+                            answer: answer
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (response.ok) {
+                        // Update score
+                        quizSession.score = data.score;
+                        document.getElementById('quizScore').textContent = `Score: ${data.score}/5`;
+                        
+                        // Show feedback
+                        const feedback = document.getElementById('quizFeedback');
+                        feedback.innerHTML = `
+                            <div class="alert ${data.correct ? 'alert-success' : 'alert-danger'}">
+                                ${data.correct ? '✓ Correct!' : '✗ Incorrect!'}
+                                <div class="mt-2">${data.explanation}</div>
+                            </div>
+                        `;
+                        
+                        if (data.completed) {
+                            // Show final results
+                            document.getElementById('quizActive').classList.add('d-none');
+                            document.getElementById('quizResults').classList.remove('d-none');
+                            document.getElementById('quizAnalysis').innerHTML = data.analysis.replace(/\n/g, '<br>');
+                        } else {
+                            // Prepare for next question
+                            quizSession.currentQuestion++;
+                            document.getElementById('questionNum').textContent = quizSession.currentQuestion + 1;
+                            updateQuizProgress(quizSession.currentQuestion);
+                            
+                            // Reset for next question
+                            nextQuestionBtn.classList.add('d-none');
+                            setTimeout(() => {
+                                displayQuestion(data.next_question, data.next_options);
+                            }, 1500);
+                        }
+                    } else {
+                        showError('Quiz error', data.error);
+                    }
+                } catch (error) {
+                    showError('Network error', error.message);
+                } finally {
+                    hideLoading(nextQuestionBtn, spinner);
+                }
+            }
+            
+            function updateQuizProgress(currentQuestion) {
+                const progress = ((currentQuestion + 1) / 5) * 100;
+                document.getElementById('quizProgress').style.width = `${progress}%`;
+            }
+            
+            // Other functions
+            async function createMemoryMap() {
+                const topic = document.getElementById('mapTopicInput').value.trim();
+                if (!topic) return;
+                
+                const spinner = document.getElementById('mapSpinner');
+                const resultDiv = document.getElementById('mapResult');
+                
+                showLoading(mapBtn, spinner);
+                resultDiv.classList.add('d-none');
+                
+                try {
+                    const response = await fetch('/memory_map', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ topic })
+                    });
+                    
+                    const data = await response.json();
+                    if (response.ok) {
+                        document.getElementById('memoryMap').textContent = data.memory_map;
+                        resultDiv.classList.remove('d-none');
+                    } else {
+                        showError('Failed to create memory map', data.error);
+                    }
+                } catch (error) {
+                    showError('Network error', error.message);
+                } finally {
+                    hideLoading(mapBtn, spinner);
+                }
+            }
+            
+            async function uploadFile() {
+                const fileInput = document.getElementById('fileInput');
+                if (!fileInput.files.length) return;
+                
+                const spinner = document.getElementById('uploadSpinner');
+                const resultDiv = document.getElementById('uploadStatus');
+                
+                showLoading(uploadBtn, spinner);
+                resultDiv.classList.add('d-none');
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+                    
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (response.ok) {
+                        resultDiv.innerHTML = '<div class="alert alert-success">File uploaded successfully!</div>';
+                        resultDiv.classList.remove('d-none');
+                    } else {
+                        showError('Upload failed', data.error);
+                    }
+                } catch (error) {
+                    showError('Network error', error.message);
+                } finally {
+                    hideLoading(uploadBtn, spinner);
+                    fileInput.value = '';
+                }
+            }
+            
+            // UI Helpers
+            function showLoading(button, spinner) {
+                button.disabled = true;
+                button.querySelector('.btn-text').classList.add('d-none');
+                spinner.classList.remove('d-none');
+            }
+            
+            function hideLoading(button, spinner) {
+                button.disabled = false;
+                button.querySelector('.btn-text').classList.remove('d-none');
+                spinner.classList.add('d-none');
+            }
+            
+            function showError(title, message) {
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-danger';
+                alert.innerHTML = `<strong>${title}:</strong> ${message}`;
+                
+                // Add to all result containers
+                document.querySelectorAll('.result-container').forEach(container => {
+                    container.classList.remove('d-none');
+                    container.innerHTML = '';
+                    container.appendChild(alert.cloneNode(true));
+                });
+            }
+        });
+    </script>
+</body>
+</html>
