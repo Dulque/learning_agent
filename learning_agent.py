@@ -8,8 +8,8 @@ import faiss
 import joblib
 from threading import Thread
 from werkzeug.utils import secure_filename
-import time
 import re
+import json
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -227,7 +227,7 @@ def explain_concept():
             "details": str(e)
         }), 500
 
-# New interactive quiz endpoints
+# Quiz endpoints
 @app.route('/start_quiz', methods=['POST'])
 def start_quiz():
     data = request.get_json()
@@ -237,38 +237,46 @@ def start_quiz():
         return jsonify({"error": "Topic cannot be empty"}), 400
     
     try:
-        system_prompt = """Generate exactly 5 quiz questions with:
-        - Clear question text
-        - 4 options (A-D)
-        - Mark correct answer with [Correct]
-        - Brief explanation
-        Format each as:
-        Q1: [Question]
-        A) [Option A]
-        B) [Option B] [Correct]
-        C) [Option C]
-        D) [Option D]
-        Explanation: [Explanation]"""
+        system_prompt = """Generate exactly 5 quiz questions in JSON format with the following structure:
+        [
+            {
+                "question": "Question text",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correct_answer": "A",
+                "explanation": "Brief explanation"
+            }
+        ]
+        Only output the JSON array with no additional text. Ensure there are exactly 5 question objects."""
         
-        quiz_response = generate_content(f"Generate a quiz about {topic}", system_prompt)
-        questions = parse_quiz_response(quiz_response)
+        quiz_response = generate_content(f"Generate a quiz about {topic}", system_prompt, max_tokens=1024)
         
-        if not questions:
-            return jsonify({"error": "Failed to generate valid quiz"}), 500
+        # Clean up the response to extract just the JSON
+        try:
+            # Remove any text outside of JSON brackets
+            start_index = quiz_response.find('[')
+            end_index = quiz_response.rfind(']') + 1
+            json_str = quiz_response[start_index:end_index]
+            
+            questions = json.loads(json_str)
+            
+            if not questions or len(questions) < 5:
+                return jsonify({"error": "Failed to generate valid quiz"}), 500
+                
+        except Exception as e:
+            print(f"Quiz parsing error: {str(e)}")
+            print(f"Original response: {quiz_response}")
+            return jsonify({"error": "Failed to parse quiz response"}), 500
         
         session_id = str(uuid.uuid4())
         quiz_sessions[session_id] = {
-            'topic': topic,
-            'questions': questions,
-            'current_question': 0,
-            'score': 0,
-            'user_answers': {}
+            "topic": topic,
+            "questions": questions[:5]  # Take first 5 questions
         }
         
         return jsonify({
             "session_id": session_id,
-            "question": questions[0]['text'],
-            "options": questions[0]['options']
+            "questions": questions[:5],
+            "topic": topic
         })
     except Exception as e:
         return jsonify({
@@ -276,51 +284,45 @@ def start_quiz():
             "details": str(e)
         }), 500
 
-@app.route('/submit_answer', methods=['POST'])
-def submit_answer():
+@app.route('/submit_quiz', methods=['POST'])
+def submit_quiz():
     data = request.get_json()
     session_id = data.get('session_id')
-    question_id = data.get('question_id')
-    answer = data.get('answer')
+    answers = data.get('answers')
     
     if not session_id or session_id not in quiz_sessions:
         return jsonify({"error": "Invalid quiz session"}), 400
     
-    quiz = quiz_sessions[session_id]
-    if question_id >= len(quiz['questions']):
-        return jsonify({"error": "Invalid question"}), 400
+    session = quiz_sessions[session_id]
+    questions = session['questions']
+    results = []
+    score = 0
     
-    question = quiz['questions'][question_id]
-    is_correct = answer.upper() == question['correct_answer']
-    
-    # Update quiz state
-    quiz['user_answers'][question_id] = answer
-    if is_correct:
-        quiz['score'] += 1
-    
-    # Move to next question
-    next_question_id = question_id + 1
-    
-    if next_question_id < len(quiz['questions']):
-        next_question = quiz['questions'][next_question_id]
-        return jsonify({
-            "correct": is_correct,
+    # Check each answer
+    for i, question in enumerate(questions):
+        user_answer = answers.get(str(i), "").upper()
+        correct = user_answer == question['correct_answer']
+        results.append({
+            "question": question['question'],
+            "user_answer": user_answer,
+            "correct_answer": question['correct_answer'],
             "explanation": question['explanation'],
-            "next_question": next_question['text'],
-            "next_options": next_question['options'],
-            "question_id": next_question_id,
-            "score": quiz['score']
+            "correct": correct
         })
-    else:
-        # Quiz completed - generate analysis
-        analysis = generate_quiz_analysis(quiz)
-        return jsonify({
-            "correct": is_correct,
-            "explanation": question['explanation'],
-            "completed": True,
-            "final_score": quiz['score'],
-            "analysis": analysis
-        })
+        
+        if correct:
+            score += 1
+    
+    # Generate analysis
+    topic = session['topic']
+    analysis = generate_quiz_analysis(topic, score, len(questions), results)
+    
+    return jsonify({
+        "score": score,
+        "total": len(questions),
+        "results": results,
+        "analysis": analysis
+    })
 
 @app.route('/memory_map', methods=['POST'])
 def create_memory_map():
@@ -346,54 +348,8 @@ def create_memory_map():
             "details": str(e)
         }), 500
 
-# Helper functions for quiz
-def parse_quiz_response(response):
-    """Parse the quiz response into structured questions"""
-    questions = []
-    current_question = {}
-    
-    lines = response.split('\n')
-    for line in lines:
-        line = line.strip()
-        if line.startswith('Q') or line.startswith('Question'):
-            if current_question:
-                questions.append(current_question)
-            current_question = {
-                'text': line,
-                'options': [],
-                'correct_answer': None,
-                'explanation': None
-            }
-        elif line.startswith(('A)', 'B)', 'C)', 'D)')):
-            current_question['options'].append(line)
-            if '[Correct]' in line:
-                current_question['correct_answer'] = line[0]
-                current_question['options'][-1] = line.replace('[Correct]', '').strip()
-        elif line.startswith('Explanation:'):
-            current_question['explanation'] = line.replace('Explanation:', '').strip()
-    
-    if current_question:
-        questions.append(current_question)
-    
-    return questions[:5]  # Return max 5 questions
-
-def generate_quiz_analysis(quiz):
+def generate_quiz_analysis(topic, score, total, results):
     """Generate personalized analysis based on quiz results"""
-    topic = quiz['topic']
-    score = quiz['score']
-    total = len(quiz['questions'])
-    
-    # Build results summary
-    results = []
-    for i, q in enumerate(quiz['questions']):
-        user_answer = quiz['user_answers'].get(i, "No answer")
-        results.append({
-            "question": q['text'],
-            "correct_answer": q['correct_answer'],
-            "user_answer": user_answer,
-            "is_correct": user_answer == q['correct_answer']
-        })
-    
     # Generate analysis
     prompt = f"""The user scored {score}/{total} on a quiz about {topic}. 
     Here are the results:
