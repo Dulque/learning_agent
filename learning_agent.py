@@ -10,6 +10,7 @@ from threading import Thread
 from werkzeug.utils import secure_filename
 import re
 import json
+import traceback
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -54,20 +55,43 @@ def init_vector_db():
 init_vector_db()
 
 def extract_text_from_file(filepath):
-    """Optimized text extraction with limits"""
-    if filepath.endswith('.pdf'):
-        text = ""
-        with open(filepath, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            for page in reader.pages[:3]:  # Reduce to 3 pages for speed
-                text += page.extract_text() + "\n"
-        return text[:5000]  # Limit to 5K characters
-    elif filepath.endswith('.txt'):
-        with open(filepath, 'r', encoding='utf-8') as file:
-            return file.read(10000)  # Read only first 10KB
-    return ""
+    """Robust text extraction with better error handling"""
+    try:
+        if filepath.endswith('.pdf'):
+            text = ""
+            with open(filepath, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
+                
+                # Check if PDF is encrypted
+                if reader.is_encrypted:
+                    try:
+                        reader.decrypt('')  # Try empty password
+                    except:
+                        print("Encrypted PDF - could not extract text")
+                        return "Encrypted PDF - could not extract text"
+                
+                # Extract text from first 3 pages
+                for page in reader.pages[:3]:
+                    try:
+                        text += page.extract_text() + "\n"
+                    except Exception as e:
+                        print(f"Error extracting page: {str(e)}")
+                        continue
+                
+                # Return up to 5000 characters
+                return text[:5000] if text else ""
+                
+        elif filepath.endswith('.txt'):
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as file:
+                return file.read(10000)  # Read only first 10KB
+                
+        return ""
+    except Exception as e:
+        print(f"Error extracting text: {str(e)}")
+        traceback.print_exc()
+        return ""
 
-def split_text(text, chunk_size=300):  # Smaller chunks for faster processing
+def split_text(text, chunk_size=300):
     """Efficient text splitting"""
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
 
@@ -75,6 +99,10 @@ def store_document_async(text):
     """Store document in background thread"""
     def process():
         global vector_index, chunks
+        if not text:
+            print("No text to store")
+            return
+            
         new_chunks = split_text(text)
         new_embeddings = []
         
@@ -93,10 +121,11 @@ def store_document_async(text):
             
             faiss.write_index(vector_index, app.config['VECTOR_DB_PATH'])
             joblib.dump(chunks, app.config['CHUNKS_PATH'])
+            print(f"Stored {len(new_chunks)} chunks")
     
     Thread(target=process).start()
 
-def retrieve_relevant_chunks(query, top_n=2):  # Reduce top_n for speed
+def retrieve_relevant_chunks(query, top_n=2):
     """Efficient similarity search with FAISS"""
     if vector_index.ntotal == 0:
         return []
@@ -110,7 +139,7 @@ def retrieve_relevant_chunks(query, top_n=2):  # Reduce top_n for speed
         print(f"Retrieval error: {str(e)}")
         return []
 
-def generate_content(prompt, system_prompt=None, max_tokens=256):  # Reduced max tokens
+def generate_content(prompt, system_prompt=None, max_tokens=256):
     """Faster generation with optimizations"""
     try:
         full_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -122,9 +151,9 @@ def generate_content(prompt, system_prompt=None, max_tokens=256):  # Reduced max
             prompt=full_prompt,
             stream=False,
             options={
-                'num_predict': max_tokens,  # Reduced for faster responses
+                'num_predict': max_tokens,
                 'temperature': 0.7,
-                'num_ctx': 1024  # Smaller context window
+                'num_ctx': 1024
             }
         )
         return response['response']
@@ -153,16 +182,27 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
     
-    if not file.filename.lower().endswith(('.pdf', '.txt')):
+    filename = secure_filename(file.filename)
+    ext = os.path.splitext(filename)[1].lower()
+    
+    if ext not in ['.pdf', '.txt']:
         return jsonify({"error": "File type not allowed"}), 400
     
     try:
-        filename = secure_filename(file.filename)
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
+        print(f"File saved to: {filepath}")
         
         text = extract_text_from_file(filepath)
+        print(f"Extracted text length: {len(text)}")
+        
+        if not text:
+            return jsonify({
+                "error": "File processing failed",
+                "details": "Could not extract text from file"
+            }), 500
+        
         store_document_async(text)
         
         return jsonify({
@@ -175,29 +215,35 @@ def upload_file():
             "details": str(e)
         }), 500
 
-@app.route('/learn', methods=['POST'])
-def learn_topic():
+@app.route('/ask', methods=['POST'])
+def ask_question():
     data = request.get_json()
-    topic = data.get('topic', '').strip()
+    question = data.get('question', '').strip()
     
-    if not topic:
-        return jsonify({"error": "Topic cannot be empty"}), 400
+    if not question:
+        return jsonify({"error": "Question cannot be empty"}), 400
     
     try:
-        explanation = generate_content(
-            f"Explain the topic of {topic} in comprehensive detail with key concepts and examples",
-            "You are an expert educator. Provide clear, structured explanations with examples.",
-            max_tokens=384
+        # Retrieve relevant context from vector DB
+        context_chunks = retrieve_relevant_chunks(question, top_n=3)
+        context = "\n".join(context_chunks) if context_chunks else "No relevant context found"
+        
+        # Generate answer with context
+        answer = generate_content(
+            f"""Question: {question}
+            Context: {context}
+            Provide a comprehensive answer to the question. If the context is relevant, use it to enhance your answer.""",
+            "You are an expert tutor who answers questions clearly and thoroughly. Provide explanations with examples when appropriate.",
+            max_tokens=512
         )
         
-        session['current_topic'] = topic
         return jsonify({
-            "topic": topic,
-            "explanation": explanation
+            "question": question,
+            "answer": answer
         })
     except Exception as e:
         return jsonify({
-            "error": "Failed to learn topic",
+            "error": "Failed to answer question",
             "details": str(e)
         }), 500
 
@@ -336,7 +382,7 @@ def create_memory_map():
         mind_map = generate_content(
             f"Create a comprehensive mind map for: {topic}",
             "You are a visual learning expert. Create mind maps using ASCII art",
-            max_tokens=256
+            max_tokens=500
         )
         return jsonify({
             "topic": topic,

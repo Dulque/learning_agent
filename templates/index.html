@@ -116,6 +116,22 @@
             padding: 20px;
             margin-bottom: 20px;
         }
+        
+        .question-bubble {
+            background: rgba(67, 97, 238, 0.2);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--accent);
+        }
+        
+        .answer-bubble {
+            background: rgba(76, 201, 240, 0.2);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--success);
+        }
     </style>
 </head>
 <body>
@@ -127,7 +143,7 @@
 
         <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="learn-tab" data-bs-toggle="tab" data-bs-target="#learn" type="button" role="tab">Learn</button>
+                <button class="nav-link active" id="ask-tab" data-bs-toggle="tab" data-bs-target="#ask" type="button" role="tab">Ask Me</button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="explain-tab" data-bs-toggle="tab" data-bs-target="#explain" type="button" role="tab">Explain</button>
@@ -144,19 +160,28 @@
         </ul>
 
         <div class="tab-content" id="myTabContent">
-            <!-- Learn Tab -->
-            <div class="tab-pane fade show active" id="learn" role="tabpanel">
+            <!-- Ask Me Tab -->
+            <div class="tab-pane fade show active" id="ask" role="tabpanel">
                 <div class="glass-card p-4">
-                    <h3><i class="fas fa-book me-2"></i>Learn a New Topic</h3>
+                    <h3><i class="fas fa-question-circle me-2"></i>Ask Me Anything</h3>
                     <div class="mb-3 mt-4">
-                        <label class="form-label">What would you like to learn?</label>
-                        <input type="text" class="form-control bg-transparent text-white" id="topicInput" placeholder="Enter a topic (e.g., Quantum Physics)">
+                        <label class="form-label">What would you like to know?</label>
+                        <textarea class="form-control bg-transparent text-white" id="questionInput" 
+                                  placeholder="Ask any question or enter a topic (e.g., 'Explain quantum entanglement' or 'Tell me about the French Revolution')" 
+                                  rows="3"></textarea>
                     </div>
-                    <button class="btn btn-primary w-100" id="learnBtn">
-                        <span class="btn-text">Start Learning</span>
-                        <span class="spinner-border spinner-border-sm d-none" id="learnSpinner"></span>
+                    <button class="btn btn-primary w-100" id="askBtn">
+                        <span class="btn-text">Ask Question</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="askSpinner"></span>
                     </button>
-                    <div id="learnResult" class="result-container d-none"></div>
+                    <div id="askResult" class="result-container d-none">
+                        <div class="question-bubble">
+                            <strong>Q:</strong> <span id="questionOutput"></span>
+                        </div>
+                        <div class="answer-bubble">
+                            <strong>A:</strong> <span id="answerOutput"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -275,7 +300,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Elements
-            const learnBtn = document.getElementById('learnBtn');
+            const askBtn = document.getElementById('askBtn');
             const explainBtn = document.getElementById('explainBtn');
             const startQuizBtn = document.getElementById('startQuizBtn');
             const mapBtn = document.getElementById('mapBtn');
@@ -290,7 +315,7 @@
             };
             
             // Event listeners
-            learnBtn.addEventListener('click', learnTopic);
+            askBtn.addEventListener('click', askQuestion);
             explainBtn.addEventListener('click', explainConcept);
             startQuizBtn.addEventListener('click', startQuiz);
             mapBtn.addEventListener('click', createMemoryMap);
@@ -298,38 +323,38 @@
             submitQuizBtn.addEventListener('click', submitQuiz);
             restartQuizBtn.addEventListener('click', restartQuiz);
             
-            // Learning functions
-            async function learnTopic() {
-                const topic = document.getElementById('topicInput').value.trim();
-                if (!topic) return;
+            // Ask Question function
+            async function askQuestion() {
+                const question = document.getElementById('questionInput').value.trim();
+                if (!question) return;
                 
-                const spinner = document.getElementById('learnSpinner');
-                const resultDiv = document.getElementById('learnResult');
+                const spinner = document.getElementById('askSpinner');
+                const resultDiv = document.getElementById('askResult');
+                const questionOutput = document.getElementById('questionOutput');
+                const answerOutput = document.getElementById('answerOutput');
                 
-                showLoading(learnBtn, spinner);
+                showLoading(askBtn, spinner);
                 resultDiv.classList.add('d-none');
                 
                 try {
-                    const response = await fetch('/learn', {
+                    const response = await fetch('/ask', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ topic })
+                        body: JSON.stringify({ question })
                     });
                     
                     const data = await response.json();
                     if (response.ok) {
-                        resultDiv.innerHTML = `
-                            <h4>${data.topic}</h4>
-                            <div class="mt-3">${data.explanation.replace(/\n/g, '<br>')}</div>
-                        `;
+                        questionOutput.textContent = data.question;
+                        answerOutput.innerHTML = data.answer.replace(/\n/g, '<br>');
                         resultDiv.classList.remove('d-none');
                     } else {
-                        showError('Failed to learn topic', data.error);
+                        showError('Failed to get answer', data.error || data.details || 'Unknown error');
                     }
                 } catch (error) {
                     showError('Network error', error.message);
                 } finally {
-                    hideLoading(learnBtn, spinner);
+                    hideLoading(askBtn, spinner);
                 }
             }
             
@@ -359,7 +384,7 @@
                         `;
                         resultDiv.classList.remove('d-none');
                     } else {
-                        showError('Failed to explain concept', data.error);
+                        showError('Failed to explain concept', data.error || data.details || 'Unknown error');
                     }
                 } catch (error) {
                     showError('Network error', error.message);
@@ -402,7 +427,7 @@
                         // Display all questions
                         displayQuestions(data.questions);
                     } else {
-                        showError('Failed to start quiz', data.error);
+                        showError('Failed to start quiz', data.error || data.details || 'Unknown error');
                     }
                 } catch (error) {
                     showError('Network error', error.message);
@@ -513,7 +538,7 @@
                             <div>${data.analysis.replace(/\n/g, '<br>')}</div>
                         `;
                     } else {
-                        showError('Quiz submission failed', data.error);
+                        showError('Quiz submission failed', data.error || data.details || 'Unknown error');
                     }
                 } catch (error) {
                     showError('Network error', error.message);
@@ -537,13 +562,13 @@
                 };
             }
             
-            // Other functions
             async function createMemoryMap() {
                 const topic = document.getElementById('mapTopicInput').value.trim();
                 if (!topic) return;
                 
                 const spinner = document.getElementById('mapSpinner');
                 const resultDiv = document.getElementById('mapResult');
+                const mapOutput = document.getElementById('memoryMap');
                 
                 showLoading(mapBtn, spinner);
                 resultDiv.classList.add('d-none');
@@ -557,10 +582,10 @@
                     
                     const data = await response.json();
                     if (response.ok) {
-                        document.getElementById('memoryMap').textContent = data.memory_map;
+                        mapOutput.textContent = data.memory_map;
                         resultDiv.classList.remove('d-none');
                     } else {
-                        showError('Failed to create memory map', data.error);
+                        showError('Failed to create memory map', data.error || data.details || 'Unknown error');
                     }
                 } catch (error) {
                     showError('Network error', error.message);
@@ -569,6 +594,7 @@
                 }
             }
             
+            // Upload function
             async function uploadFile() {
                 const fileInput = document.getElementById('fileInput');
                 if (!fileInput.files.length) return;
@@ -590,10 +616,10 @@
                     
                     const data = await response.json();
                     if (response.ok) {
-                        resultDiv.innerHTML = '<div class="alert alert-success">File uploaded successfully!</div>';
+                        resultDiv.innerHTML = '<div class="alert alert-success">File uploaded successfully! Processing in background.</div>';
                         resultDiv.classList.remove('d-none');
                     } else {
-                        showError('Upload failed', data.error);
+                        showError('Upload failed', data.error || data.details || 'Unknown error');
                     }
                 } catch (error) {
                     showError('Network error', error.message);
